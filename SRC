@@ -1,0 +1,165 @@
+#!/data/data/com.termux/files/usr/bin/bash
+
+SEARCH_DIR=~/storage/shared
+
+FILE_TYPES=(
+  "All"
+  # Documents
+  "pdf" "doc" "docx" "xls" "xlsx" "ppt" "pptx" "odt" "ods" "odp" "rtf" "txt">
+  # Images
+  "jpg" "jpeg" "png" "gif" "bmp" "tiff" "svg" "webp" "heic"
+  # Audio
+  "mp3" "wav" "flac" "aac" "ogg" "m4a" "wma"
+  # Video
+  "mp4" "avi" "mkv" "mov" "wmv" "flv" "webm" "m4v"
+  # Archives
+  "zip" "rar" "7z" "tar" "gz" "bz2" "xz" "iso"
+  # Code & Scripts
+  "c" "cpp" "h" "hpp" "java" "py" "js" "ts" "sh" "bat" "pl" "rb" "php" "go" >
+  # Web
+  "html" "htm" "css" "scss" "less" "json" "xml"
+  # Fonts
+  "ttf" "otf" "woff" "woff2"
+  # Databases
+  "db" "sql" "sqlite" "mdb"
+  # Executables & Binaries
+  "exe" "dll" "bin" "apk" "deb" "rpm" "elf"
+  # Misc
+  "ics" "vcf" "torrent" "md5" "sha1" "pem" "crt" "key"
+)
+
+while true; do
+  echo "🔍 Enter your search term (or empty to exit):"
+  read QUERY
+  if [[ -z "$QUERY" ]]; then
+    echo "👋 Exiting."
+    exit 0
+  fi
+
+  echo
+  echo "🔎 Choose search mode:"
+  select MODE in "Filename" "File Content" "Exit"; do
+    case $MODE in
+      Filename) SEARCH_MODE="filename"; break ;;
+      "File Content") SEARCH_MODE="content"; break ;;
+      Exit) echo "👋 Exiting."; exit 0 ;;
+      *) echo "Invalid option. Try again." ;;
+    esac
+  done
+  echo
+
+  echo "📂 Filter by file type:"
+  select TYPE in "${FILE_TYPES[@]}" "Exit"; do
+    case $TYPE in
+      "All") EXT=""; break ;;
+      Exit) echo "👋 Exiting."; exit 0 ;;
+      *) EXT="$TYPE"; break ;;
+    esac
+  done
+  echo
+
+  echo "🔎 Searching \"$QUERY\" in $SEARCH_DIR (Mode: $SEARCH_MODE, Type: ${>
+  echo
+
+  if [[ "$SEARCH_MODE" == "filename" ]]; then
+    if [[ "$EXT" == "" ]]; then
+      MATCHED_FILES=$(fd --type f "$QUERY" "$SEARCH_DIR")
+    else
+      MATCHED_FILES=$(fd --type f -e "$EXT" "$QUERY" "$SEARCH_DIR")
+    fi
+  else
+    if [[ "$EXT" == "" ]]; then
+      MATCHED_FILES=$(rg --files-with-matches --ignore-case "$QUERY" "$SEARC>
+    else
+      MATCHED_FILES=$(rg --files-with-matches --ignore-case -g "*.$EXT" "$SE>
+    fi
+  fi
+  if [[ -z "$MATCHED_FILES" ]]; then
+    echo "❌ No matching files found."
+    continue
+  fi
+
+  MAPFILE -t FILE_ARRAY <<< "$MATCHED_FILES"
+
+  while true; do
+    SELECTED_FILE=$(printf '%s\n' "${FILE_ARRAY[@]}" | fzf --preview="bat -->
+    --height=90% --layout=reverse --prompt="📁 Select a file (or ESC to back>
+
+    if [[ -z "$SELECTED_FILE" ]]; then
+      echo "↩️  Returning to search menu."
+      break
+    fi
+
+    echo
+    echo "📂 Selected: $SELECTED_FILE"
+    echo "⚙️ Choose an action:"
+    select ACTION in "Open" "Copy" "Move" "Delete" "Rename" "Back to file li>
+      case $ACTION in
+        "Open")
+          echo "Opening file..."
+          termux-open "$SELECTED_FILE"
+          break
+          ;;
+        "Copy")
+          echo "Enter destination directory:"
+          read DEST
+          if [[ -d "$DEST" ]]; then
+            cp "$SELECTED_FILE" "$DEST"
+            echo "Copied to $DEST"
+          else
+            echo "Destination does not exist."
+          fi
+          break
+          ;;
+        "Move")
+          echo "Enter destination directory:"
+          read DEST
+          if [[ -d "$DEST" ]]; then
+            mv "$SELECTED_FILE" "$DEST"
+            echo "Moved to $DEST"
+          else
+            echo "Destination does not exist."
+          fi
+          break
+          ;;
+        "Delete")
+          echo "Are you sure you want to delete this file? (y/n)"
+          read CONFIRM
+          if [[ "$CONFIRM" == "y" || "$CONFIRM" == "Y" ]]; then
+            rm "$SELECTED_FILE"
+            echo "File deleted."
+            FILE_ARRAY=("${FILE_ARRAY[@]/$SELECTED_FILE}")
+          else
+            echo "Delete canceled."
+          fi
+          break
+          ;;
+        "Rename")
+          echo "Enter new filename (with path or relative):"
+          read NEWNAME
+          mv "$SELECTED_FILE" "$NEWNAME"
+          echo "File renamed to $NEWNAME"
+          for i in "${!FILE_ARRAY[@]}"; do
+            if [[ "${FILE_ARRAY[$i]}" = "$SELECTED_FILE" ]]; then
+              FILE_ARRAY[$i]="$NEWNAME"
+            fi
+            done
+            break
+            ;;
+            "Back to file list")
+            break
+            ;;
+            "New Search")
+            break 3
+            ;;
+            "Exit")
+            echo "👋 Goodbye!"
+            exit 0
+            ;;
+            *)
+            echo "Invalid option. Try again."
+            ;;
+        esac
+      done
+   done
+done
